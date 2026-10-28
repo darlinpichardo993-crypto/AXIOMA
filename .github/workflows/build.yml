@@ -1,0 +1,63 @@
+name: Build AXIOMA
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'CMakeLists.txt'
+      - 'Source/**'
+      - 'installer/**'
+      - '.github/workflows/build.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Configure x64 Release
+        run: cmake -S . -B build -G "Visual Studio 17 2022" -A x64
+
+      - name: Build VST3 and Standalone
+        run: cmake --build build --config Release --target AXIOMA_VST3 AXIOMA_Standalone --parallel
+
+      - name: Verify build outputs
+        shell: pwsh
+        run: |
+          $vst = "build/AXIOMA_artefacts/Release/VST3/AXIOMA.vst3"
+          $app = "build/AXIOMA_artefacts/Release/Standalone/AXIOMA.exe"
+          if (!(Test-Path $vst)) { throw "VST3 bundle missing: $vst" }
+          if (!(Test-Path $app)) { throw "Standalone executable missing: $app" }
+
+      - name: Install Inno Setup
+        run: choco install innosetup --yes --no-progress
+
+      - name: Build installer
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" "installer/AXIOMA.iss"
+          if (!(Test-Path "dist/setup.exe")) { throw "Installer output dist/setup.exe missing" }
+
+      - name: Package VST3 and standalone
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "build/AXIOMA_artefacts/Release/VST3/AXIOMA.vst3" -DestinationPath "dist/AXIOMA-VST3-Windows-x64.zip" -Force
+          Copy-Item "build/AXIOMA_artefacts/Release/Standalone/AXIOMA.exe" "dist/AXIOMA.exe"
+
+      - name: Upload installer and plugin artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: AXIOMA-Windows-x64
+          path: |
+            dist/setup.exe
+            dist/AXIOMA-VST3-Windows-x64.zip
+            dist/AXIOMA.exe
+          if-no-files-found: error
+          retention-days: 30
