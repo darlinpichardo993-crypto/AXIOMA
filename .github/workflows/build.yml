@@ -42,7 +42,7 @@ jobs:
         shell: pwsh
         run: |
           New-Item -ItemType Directory -Force -Path dist | Out-Null
-          & "$env:ProgramFiles(x86)\Inno Setup 6\ISCC.exe" "installer/AXIOMA.iss"
+          & "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe" "installer/AXIOMA.iss"
           if (!(Test-Path "dist/setup.exe")) { throw "Installer output dist/setup.exe missing" }
 
       - name: Package VST3 and standalone
